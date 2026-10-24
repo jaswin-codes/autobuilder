@@ -1,0 +1,21 @@
+{
+  "claudePath": "C:\\Users\\jaswi\\.local\\bin\\claude.exe",
+  "planModel": "opus",
+  "buildModel": "sonnet",
+  "maxStagesPerDay": 2,
+  "stageTimeoutMinutes": 30,
+  "planTimeoutMinutes": 10,
+  "allowedTools": [
+    "Read", "Edit", "Write", "Glob", "Grep",
+    "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git add:*)", "Bash(git commit:*)",
+    "Bash(ls:*)", "Bash(mkdir:*)", "Bash(cat:*)",
+    "Bash(npm:*)", "Bash(npx:*)", "Bash(node:*)",
+    "Bash(python:*)", "Bash(py:*)", "Bash(pip:*)", "Bash(pytest:*)",
+    "Bash(dotnet:*)", "Bash(javac:*)", "Bash(java:*)", "Bash(mvn:*)", "Bash(gradle:*)",
+    "Bash(cargo:*)", "Bash(go:*)", "Bash(gcc:*)", "Bash(g++:*)", "Bash(make:*)", "Bash(pio:*)"
+  ],
+  "disallowedTools": [
+    "Bash(git push:*)", "Bash(git remote:*)", "Bash(git reset:*)", "Bash(git rebase:*)",
+    "Bash(rm -rf:*)", "Bash(curl:*)", "Bash(wget:*)"
+  ]
+}

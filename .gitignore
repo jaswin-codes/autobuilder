@@ -1,0 +1,11 @@
+# Each project under projects/ is its own git repo; runtime data stays local.
+projects/
+inbox/
+logs/
+state/
+
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
