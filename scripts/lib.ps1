@@ -101,7 +101,7 @@ function Resolve-Project([string]$Name) {
 function Invoke-Claude([string]$Dir, [string]$Prompt, [string]$Model, [int]$TimeoutMinutes) {
     $cfg = Get-Config
     $q = { param($s) '"' + ($s -replace '"', '\"') + '"' }
-    $argList = @('-p', '--model', $Model, '--permission-mode', 'dontAsk', '--output-format', 'text')
+    $argList = @('-p', '--model', $Model, '--permission-mode', 'dontAsk', '--output-format', 'json')
     $argList += '--allowedTools'
     $argList += ($cfg.allowedTools | ForEach-Object { & $q $_ })
     $argList += '--disallowedTools'
@@ -131,8 +131,22 @@ function Invoke-Claude([string]$Dir, [string]$Prompt, [string]$Model, [int]$Time
         & taskkill.exe /T /F /PID $proc.Id 2>$null | Out-Null
         $proc.WaitForExit(10000) | Out-Null
     }
-    $out = $outTask.Result + $(if ($errTask.Result) { "`r`n[stderr]`r`n" + $errTask.Result } else { '' })
-    return [pscustomobject]@{ ExitCode = $(if ($timedOut) { -1 } else { $proc.ExitCode }); Output = $out; TimedOut = $timedOut }
+    # The JSON result carries the final reply, the cost and every tool call the allowlist denied.
+    $out = $outTask.Result
+    $denials = @()
+    $cost = $null
+    try {
+        $json = $out | ConvertFrom-Json
+        $out = $json.result
+        $cost = $json.total_cost_usd
+        $denials = @($json.permission_denials | ForEach-Object {
+            $i = $_.tool_input
+            "$($_.tool_name): $(if ($i.command) { $i.command } elseif ($i.file_path) { $i.file_path } else { $i | ConvertTo-Json -Compress })"
+        })
+    } catch { }
+    if ($denials) { $out += "`r`n`r`n[denied tool calls]`r`n" + ($denials -join "`r`n") }
+    if ($errTask.Result) { $out += "`r`n`r`n[stderr]`r`n" + $errTask.Result }
+    return [pscustomobject]@{ ExitCode = $(if ($timedOut) { -1 } else { $proc.ExitCode }); Output = $out; TimedOut = $timedOut; Denials = $denials; Cost = $cost }
 }
 
 function Show-Notification([string]$Title, [string]$Text) {

@@ -5,6 +5,8 @@ Read these files in the current folder first:
 - IDEA.md — the original idea, for intent.
 - NOTES.md (if present) — handoff notes from earlier sessions. Read them before touching code.
 
+Shell rules: only an allowlist of commands is permitted and anything else is silently denied. Run ONE plain command per Bash call: no `&&`, `;`, `|`, `cd`, `2>&1` or other redirects. Run the test command exactly as written in PLAN.md. Stage files with `git add <paths>` and commit in a separate call with `git commit -m "..."`. Create files with the Write tool, not shell commands. If a command is denied, retry it in this simpler form before giving up.
+
 Then:
 1. Do only this stage. Do not start later stages, even if you have time left.
 2. Keep the project building and the tests passing. Add or update tests for what you build. Run the test command from PLAN.md before every commit.

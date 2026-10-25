@@ -83,7 +83,9 @@ try {
                 $after.Status = 'done'
             }
             $line = "**$($p.Slug)** [$($after.Done)/$($after.Total), $($after.Status)] $commits commit(s) - $result"
+            if ($r.Cost) { $line += " (`$$([math]::Round($r.Cost, 2)))" }
             if ($dirty) { $line += " - WARNING: $dirty uncommitted file(s) left" }
+            if ($r.Denials) { $line += " - denied: " + (($r.Denials | ForEach-Object { "``$_``" }) -join ', ') }
             Write-Log $line
             $summary += "$($p.Slug): $($after.Done)/$($after.Total) $($after.Status)"
         }
