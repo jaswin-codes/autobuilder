@@ -9,3 +9,5 @@ state/
 Thumbs.db
 desktop.ini
 .DS_Store
+*.onetoc2
+*.one
