@@ -18,9 +18,12 @@ $trigger.Delay = "PT${DelayMinutes}M"
 # Also unlocking the laptop counts as "opening it" when you never fully log out.
 $unlock = Get-CimClass -Namespace ROOT\Microsoft\Windows\TaskScheduler -ClassName MSFT_TaskSessionStateChangeTrigger
 $unlockTrigger = New-CimInstance -CimClass $unlock -ClientOnly -Property @{ StateChange = 8; UserId = "$env:USERDOMAIN\$env:USERNAME"; Delay = "PT${DelayMinutes}M" }
+# Waking from sleep doesn't always count as an unlock, so also try hourly 08:00-23:00 as a fallback.
+$hourly = New-ScheduledTaskTrigger -Daily -At 08:00
+$hourly.Repetition = (New-ScheduledTaskTrigger -Once -At 08:00 -RepetitionInterval (New-TimeSpan -Hours 1) -RepetitionDuration (New-TimeSpan -Hours 15)).Repetition
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
     -StartWhenAvailable -RunOnlyIfNetworkAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 3) -MultipleInstances IgnoreNew
 
-Register-ScheduledTask -TaskName $taskName -Action $action -Trigger @($trigger, $unlockTrigger) -Settings $settings `
+Register-ScheduledTask -TaskName $taskName -Action $action -Trigger @($trigger, $unlockTrigger, $hourly) -Settings $settings `
     -Description 'Builds the next stage of approved autobuilder projects (once per day).' -Force | Out-Null
-Write-Host "Registered '$taskName': runs $DelayMinutes min after log-on or unlock, at most once per day."
+Write-Host "Registered '$taskName': runs $DelayMinutes min after log-on or unlock (or hourly 08:00-23:00 as a fallback), at most once per day."
