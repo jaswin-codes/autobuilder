@@ -10,8 +10,7 @@ Shell rules: only an allowlist of commands is permitted and anything else is sil
 Then:
 1. Do only this stage. Do not start later stages, even if you have time left.
 2. Keep the project building and the tests passing. Add or update tests for what you build. Run the test command from PLAN.md before every commit.
-3. Commit locally as you go, after each logical, working chunk. Use Conventional Commit messages: `type(scope): short imperative summary`, lowercase, no trailing period, under ~72 chars, with a body when the why isn't obvious. End each commit message with:
-   Co-Authored-By: Claude <noreply@anthropic.com>
+3. Commit locally as you go, after each logical, working chunk. Use Conventional Commit messages: `type(scope): short imperative summary`, lowercase, no trailing period, under ~72 chars, with a body when the why isn't obvious. Do not add Co-Authored-By or any other attribution trailer.
    Never commit secrets, .env files, build output, dependency folders (node_modules, venv) or editor junk; keep .gitignore up to date.
 4. Never push, never add remotes, never rewrite history, never touch files outside this folder.
 5. When the stage is done and tests pass:

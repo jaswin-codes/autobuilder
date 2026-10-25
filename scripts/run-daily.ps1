@@ -45,7 +45,7 @@ try {
 
         if (Test-Path (Get-PlanPath $dir)) {
             Invoke-Git $dir @('add', 'IDEA.md', 'PLAN.md') | Out-Null
-            Invoke-Git $dir @('commit', '-m', 'docs(plan): add project idea and staged plan', '-m', 'Co-Authored-By: Claude <noreply@anthropic.com>') | Out-Null
+            Invoke-Git $dir @('commit', '-m', 'docs(plan): add project idea and staged plan') | Out-Null
             $total = @(Get-Stages $dir).Count
             Write-Log "Planned **$slug** ($total stages) - awaiting approval: ``.\ab.ps1 approve $slug``"
             $summary += "New plan: $slug ($total stages)"
