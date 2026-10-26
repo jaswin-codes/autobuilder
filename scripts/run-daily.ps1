@@ -17,8 +17,10 @@ if (-not $Force -and (Test-Path $lastRunFile) -and ((Get-Content $lastRunFile -R
 }
 $lockFile = Join-Path $StateDir 'running.lock'
 if (Test-Path $lockFile) {
+    # A lock left by a run killed mid-way (e.g. a restart) is ignored once its process is gone.
+    $lockPid = [int](Get-Content $lockFile -Raw).Trim()
     $age = (Get-Date) - (Get-Item $lockFile).LastWriteTime
-    if ($age.TotalHours -lt 3) { Write-Host 'Another run is in progress.'; exit 0 }
+    if ($age.TotalHours -lt 3 -and (Get-Process -Id $lockPid -ErrorAction SilentlyContinue)) { Write-Host 'Another run is in progress.'; exit 0 }
 }
 Set-Content $lockFile $PID
 
