@@ -55,21 +55,32 @@ try {
         }
     }
 
-    # 2. Build one stage for each approved project, least recently worked first.
+    # 2. Build stages for approved projects, least recently worked first. Each project gets
+    #    `stages_per_day` stages from its PLAN.md (default 1), within maxStagesPerDay in total.
     if (-not $PlanOnly) {
-        $queue = Get-Projects | Where-Object { $_.Status -eq 'approved' } | Sort-Object LastCommit | Select-Object -First $cfg.maxStagesPerDay
-        foreach ($p in $queue) {
+        $budget = $cfg.maxStagesPerDay
+        $queue = @(Get-Projects | Where-Object { $_.Status -eq 'approved' } | Sort-Object LastCommit)
+        $work = foreach ($q in $queue) {
+            $n = [int](Get-PlanField $q.Dir 'stages_per_day'); if ($n -lt 1) { $n = 1 }
+            for ($i = 0; $i -lt $n; $i++) { $q.Slug }
+        }
+        $stuck = @()
+        foreach ($slug in $work) {
+            if ($budget -le 0) { break }
+            $p = Get-Projects | Where-Object Slug -eq $slug
+            if ($p.Status -ne 'approved' -or $slug -in $stuck) { continue }
             if (-not $p.NextStage) {
                 Set-PlanStatus $p.Dir 'done'
                 Invoke-Git $p.Dir @('commit', '-am', 'docs(plan): mark project done') | Out-Null
                 Write-Log "**$($p.Slug)** has no stages left - marked done"
                 continue
             }
+            $budget--
             $before = (Invoke-Git $p.Dir @('rev-parse', 'HEAD'))
             $prompt = (Get-Content (Join-Path $Root 'prompts\stage.md') -Raw -Encoding UTF8).Replace('{{STAGE}}', $p.NextStage)
             Write-Log "Building **$($p.Slug)**: $($p.NextStage)"
             $r = Invoke-Claude $p.Dir $prompt $cfg.buildModel $cfg.stageTimeoutMinutes
-            [System.IO.File]::WriteAllText((Join-Path $LogsDir "runs\$today-$($p.Slug).txt"), $r.Output, $Utf8)
+            [System.IO.File]::WriteAllText((Join-Path $LogsDir "runs\$today-$($p.Slug)-$(Get-Date -Format HHmm).txt"), $r.Output, $Utf8)
 
             $commits = @(Invoke-Git $p.Dir @('log', '--oneline', "$before..HEAD")).Count
             $dirty = @(Invoke-Git $p.Dir @('status', '--porcelain')).Count
@@ -77,6 +88,8 @@ try {
             if (-not $result) { $result = if ($r.TimedOut) { "timed out after $($cfg.stageTimeoutMinutes) min" } else { "no result line (exit $($r.ExitCode))" } }
 
             $after = Get-Projects | Where-Object Slug -eq $p.Slug
+            # Don't retry an unfinished stage on the same day.
+            if ($after.NextStage -eq $p.NextStage) { $stuck += $slug }
             if ($after.Status -eq 'approved' -and -not $after.NextStage) {
                 Set-PlanStatus $p.Dir 'done'
                 Invoke-Git $p.Dir @('commit', '-am', 'docs(plan): mark project done') | Out-Null

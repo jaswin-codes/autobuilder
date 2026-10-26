@@ -2,7 +2,7 @@
   "claudePath": "C:\\Users\\jaswi\\.local\\bin\\claude.exe",
   "planModel": "opus",
   "buildModel": "sonnet",
-  "maxStagesPerDay": 2,
+  "maxStagesPerDay": 4,
   "stageTimeoutMinutes": 30,
   "planTimeoutMinutes": 10,
   "allowedTools": [

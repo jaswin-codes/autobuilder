@@ -45,7 +45,7 @@ git push                                                   # after that
 ## How it works
 
 - **Plan:** each inbox note becomes `projects/<name>/` with its own git repo, holding `IDEA.md` and a `PLAN.md`. `PLAN.md` has a `status:`, a `test_command:` and a checklist of 3–7 stages that Claude sized itself. Planning uses `planModel` (Opus by default).
-- **Build:** each run picks up to `maxStagesPerDay` approved projects, least recently worked first, and does the next unticked stage of each with `buildModel` (Sonnet by default, to save credits). Claude writes tests, commits in Conventional Commit style, ticks the stage in `PLAN.md` and leaves handoff notes in `NOTES.md` for the next day.
+- **Build:** each run works through approved projects, least recently worked first, doing the next unticked stage of each (or up to `stages_per_day` stages, if the project's `PLAN.md` front matter sets it), up to `maxStagesPerDay` stages in total with `buildModel` (Sonnet by default, to save credits). Claude writes tests, commits in Conventional Commit style, ticks the stage in `PLAN.md` and leaves handoff notes in `NOTES.md` for the next day.
 - **Status values:** `proposed` → `approved` → `done`. A project can also be `paused` by you, or set to `blocked` by Claude when it needs a decision from you; the reason is under `## Blocked` in that project's `NOTES.md`. Fix the problem, then run `.\ab.ps1 resume <name>`.
 - **Guardrails:**
   - Claude runs headless in `dontAsk` mode, which means only the tools in `config.json`'s `allowedTools` can run. Push, remotes, history rewrites, `rm -rf` and downloads are blocked.
@@ -70,7 +70,7 @@ projects/, inbox/, logs/, state/   runtime data, git-ignored
 ## Tuning credit use
 
 In `config.json`:
-- `maxStagesPerDay`: the total number of stages built per day, across all projects.
+- `maxStagesPerDay`: the total number of stages built per day, across all projects. A project gets one stage a day unless its `PLAN.md` sets `stages_per_day: N`; an unfinished stage is not retried the same day.
 - `buildModel` / `planModel`: which model plans and which one builds.
 - `stageTimeoutMinutes`: how long a single stage may run before it is stopped.
 - `allowedTools`: add a `Bash(...)` rule here if a project needs a tool that isn't allowed yet.
