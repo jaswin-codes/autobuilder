@@ -42,7 +42,7 @@ try {
         Move-Item $idea.FullName (Join-Path $dir 'IDEA.md')
 
         $prompt = Get-Content (Join-Path $Root 'prompts\plan.md') -Raw -Encoding UTF8
-        $r = Invoke-Claude $dir $prompt $cfg.planModel $cfg.planTimeoutMinutes
+        $r = Invoke-Claude $dir $prompt $cfg.planModel $cfg.planTimeoutMinutes 'plan'
         [System.IO.File]::WriteAllText((Join-Path $LogsDir "runs\$today-$slug-plan.txt"), $r.Output, $Utf8)
 
         if (Test-Path (Get-PlanPath $dir)) {
@@ -81,7 +81,7 @@ try {
             $before = (Invoke-Git $p.Dir @('rev-parse', 'HEAD'))
             $prompt = (Get-Content (Join-Path $Root 'prompts\stage.md') -Raw -Encoding UTF8).Replace('{{STAGE}}', $p.NextStage)
             Write-Log "Building **$($p.Slug)**: $($p.NextStage)"
-            $r = Invoke-Claude $p.Dir $prompt $cfg.buildModel $cfg.stageTimeoutMinutes
+            $r = Invoke-Claude $p.Dir $prompt $cfg.buildModel $cfg.stageTimeoutMinutes 'build'
             [System.IO.File]::WriteAllText((Join-Path $LogsDir "runs\$today-$($p.Slug)-$(Get-Date -Format HHmm).txt"), $r.Output, $Utf8)
 
             $commits = @(Invoke-Git $p.Dir @('log', '--oneline', "$before..HEAD")).Count

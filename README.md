@@ -50,7 +50,10 @@ git push                                                   # after that
 - **Guardrails:**
   - Claude runs headless in `dontAsk` mode, which means only the tools in `config.json`'s `allowedTools` can run. Push, remotes, history rewrites, `rm -rf` and downloads are blocked.
   - Each stage is killed after `stageTimeoutMinutes`.
-  - Claude only works inside that project's folder.
+  - Planning reads untrusted inbox text, so it runs with `planAllowedTools` only (read the project folder, write `PLAN.md`, no shell). Building uses `allowedTools` and only runs after you approve a plan.
+  - File access is scoped to the project folder, with extra denies for `~/.claude`, `~/.ssh` and `~/.config`. `npx` is blocked and `npm`/`pip` installs are limited to `npm install --ignore-scripts` and `pip install -r requirements.txt`.
+  - `ab.ps1 review` only runs a plan's `test_command` if it is a plain test runner.
+  - **Known limit:** a build stage can still run `python` or `node`, which can do anything you can. The allowlist reduces accidents and supply-chain risk; it is not a sandbox. Only approve plans you have read, and for stronger isolation run the daily task inside WSL or a VM.
   - Nothing is ever pushed automatically.
 - **Logs:** `logs/<date>.md` is the daily digest. It shows each stage's result, its cost in USD, and any tool calls the allowlist denied. `logs/runs/` holds Claude's full output for each stage.
 
@@ -73,4 +76,4 @@ In `config.json`:
 - `maxStagesPerDay`: the total number of stages built per day, across all projects. A project gets one stage a day unless its `PLAN.md` sets `stages_per_day: N`; an unfinished stage is not retried the same day.
 - `buildModel` / `planModel`: which model plans and which one builds.
 - `stageTimeoutMinutes`: how long a single stage may run before it is stopped.
-- `allowedTools`: add a `Bash(...)` rule here if a project needs a tool that isn't allowed yet.
+- `allowedTools` (build) and `planAllowedTools` (plan): add a `Bash(...)` rule to `allowedTools` if a project needs a tool that isn't allowed yet. Keep the plan list shell-free.
