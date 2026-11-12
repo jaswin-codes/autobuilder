@@ -58,7 +58,9 @@ switch ($Command) {
             Write-Host "`n=== $($p.Slug) [$($p.Status), $($p.Done)/$($p.Total)] ===" -ForegroundColor Cyan
             Invoke-Git $p.Dir @('log', '--oneline', '--reverse', $range) | ForEach-Object { Write-Host "  $_" }
             $test = Get-PlanField $p.Dir 'test_command'
-            if ($test -and $p.Done -gt 0) {
+            if ($test -and $p.Done -gt 0 -and -not (Test-SafeTestCommand $test)) {
+                Write-Host "  not running test_command (not a plain test runner): $test" -ForegroundColor Yellow
+            } elseif ($test -and $p.Done -gt 0) {
                 Write-Host "  running tests: $test"
                 Push-Location $p.Dir
                 try { cmd /c "$test 2>&1" | Select-Object -Last 5 | ForEach-Object { Write-Host "    $_" } } finally { Pop-Location }

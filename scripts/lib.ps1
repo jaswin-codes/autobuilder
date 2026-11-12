@@ -96,14 +96,29 @@ function Resolve-Project([string]$Name) {
     return $p
 }
 
+# PLAN.md is written by the model, so only run its test_command if it is a plain test runner
+# with simple arguments (no &, |, ;, quotes or redirects).
+function Test-SafeTestCommand([string]$Command) {
+    return $Command -match '^(npm test|npm run [\w:-]+|pytest|python3? -m pytest|py -m pytest|dotnet test|cargo test|go test|mvn test|gradle test|make test)( [\w./=:-]+)*$'
+}
+
 # Runs `claude -p` headless in $Dir with the prompt on stdin. Kills it after $TimeoutMinutes.
+# $Stage 'plan' runs on unapproved inbox text, so it only gets planAllowedTools (no shell);
+# 'build' runs on an approved plan and gets allowedTools.
 # Returns @{ ExitCode; Output; TimedOut }.
-function Invoke-Claude([string]$Dir, [string]$Prompt, [string]$Model, [int]$TimeoutMinutes) {
+function Invoke-Claude([string]$Dir, [string]$Prompt, [string]$Model, [int]$TimeoutMinutes, [ValidateSet('plan', 'build')][string]$Stage = 'build') {
     $cfg = Get-Config
     $q = { param($s) '"' + ($s -replace '"', '\"') + '"' }
-    $argList = @('-p', '--model', $Model, '--permission-mode', 'dontAsk', '--output-format', 'json')
+    $tools = if ($Stage -eq 'plan') { $cfg.planAllowedTools } else { $cfg.allowedTools }
+    if (-not $tools) { throw "config.json has no tool list for the $Stage stage" }
+    # --restricted ignores ~/.claude/settings.json (whose broad allow rules would otherwise apply to this
+    # unattended run), confines file tools to the project folder and drops code-running tools unless
+    # --tools lists them. --strict-mcp-config keeps user MCP servers out.
+    $toolSet = if ($Stage -eq 'plan') { 'Read,Write,Glob,Grep' } else { 'Read,Edit,Write,Glob,Grep,Bash' }
+    $argList = @('-p', '--model', $Model, '--permission-mode', 'dontAsk', '--output-format', 'json',
+        '--restricted', '--strict-mcp-config', '--tools', $toolSet)
     $argList += '--allowedTools'
-    $argList += ($cfg.allowedTools | ForEach-Object { & $q $_ })
+    $argList += ($tools | ForEach-Object { & $q $_ })
     $argList += '--disallowedTools'
     $argList += ($cfg.disallowedTools | ForEach-Object { & $q $_ })
 
