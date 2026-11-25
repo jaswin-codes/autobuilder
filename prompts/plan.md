@@ -38,6 +38,6 @@ Rules for the stages:
 - Order stages so each one builds on the last and the project is usable as early as possible.
 - The final stage polishes: README with setup/run instructions, edge cases, cleanup.
 - Only use tools that need no paid accounts, API keys or network services unless the idea explicitly requires one; if it does, list it under Open questions.
-- Prefer a stack that runs on Windows with common tools (Python, Node, Java, C/C++).
+- Code is built and tested in a Linux container that has only Python 3.12, Node.js/npm and gcc/g++/make, with no network except `npm ci`/`npm install --ignore-scripts` and `pip install -r requirements.txt`. Pick a stack those cover, and write `test_command` as the plain command (no `sandbox` prefix).
 
 Only write PLAN.md. Do not create any other files or write any code yet.

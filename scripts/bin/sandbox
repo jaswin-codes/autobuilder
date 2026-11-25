@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# `sandbox <command> [args...]`: the build stage's only way to run code. Claude's Bash tool
+# (Git Bash on Windows) finds this on PATH; it hands the command to scripts/sandbox.ps1, which
+# runs it in a Docker container. Each argument gets a '+' prefix so PowerShell never parses
+# arguments such as `-m` or `--` as its own; sandbox.ps1 strips it again.
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+script="$here/sandbox.ps1"
+if command -v cygpath >/dev/null 2>&1; then script="$(cygpath -w "$script")"; fi
+ps=powershell.exe
+command -v "$ps" >/dev/null 2>&1 || ps=pwsh
+MSYS2_ARG_CONV_EXCL='*' exec "$ps" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$script" "${@/#/+}"

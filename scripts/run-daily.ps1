@@ -15,6 +15,15 @@ if (-not $Force -and (Test-Path $lastRunFile) -and ((Get-Content $lastRunFile -R
     Write-Host "Already ran today ($today). Use -Force to run again."
     exit 0
 }
+# Building runs code only inside the Docker sandbox, so without Docker the run does not start at all
+# (and last-run.txt is not written, so the hourly fallback tries again once Docker Desktop is up).
+if (-not $PlanOnly) {
+    try { Assert-SandboxReady } catch {
+        Write-Log "**Run refused**: $($_.Exception.Message)"
+        Show-Notification 'Autobuilder did not run' $_.Exception.Message
+        exit 1
+    }
+}
 $lockFile = Join-Path $StateDir 'running.lock'
 if (Test-Path $lockFile) {
     # A lock left by a run killed mid-way (e.g. a restart) is ignored once its process is gone.
@@ -83,6 +92,7 @@ try {
             Write-Log "Building **$($p.Slug)**: $($p.NextStage)"
             $r = Invoke-Claude $p.Dir $prompt $cfg.buildModel $cfg.stageTimeoutMinutes 'build'
             [System.IO.File]::WriteAllText((Join-Path $LogsDir "runs\$today-$($p.Slug)-$(Get-Date -Format HHmm).txt"), $r.Output, $Utf8)
+            Remove-SandboxContainers
 
             $commits = @(Invoke-Git $p.Dir @('log', '--oneline', "$before..HEAD")).Count
             $dirty = @(Invoke-Git $p.Dir @('status', '--porcelain')).Count
