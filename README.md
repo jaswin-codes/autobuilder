@@ -12,12 +12,13 @@ idea (inbox/)  ──plan──▶  PLAN.md (proposed)  ──you approve──�
 
 ## Setup (once)
 
-1. Requires Windows, PowerShell 5.1+, Git, and [Claude Code](https://claude.com/claude-code) installed and logged in. Set `claudePath` in `config.json` to your `claude.exe` (find it with `where.exe claude`).
+1. Requires Windows, PowerShell 5.1+, Git for Windows 2.31+, [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Linux containers, WSL 2 backend) and [Claude Code](https://claude.com/claude-code) installed and logged in. Set `claudePath` in `config.json` to your `claude.exe` (find it with `where.exe claude`).
 2. Register the background job. It runs 5 minutes after you log in or unlock the laptop, with an hourly fallback from 08:00 to 23:00 for when waking from sleep doesn't count as an unlock. It does its work at most once per day:
    ```powershell
    .\scripts\install-task.ps1
    ```
    Remove it with `.\scripts\install-task.ps1 -Remove`.
+3. Let Docker Desktop start when you sign in (Settings → General). The first build run creates the sandbox image `autobuilder-sandbox:1` from `docker/sandbox.Dockerfile`; to do it up front: `docker build -t autobuilder-sandbox:1 -f docker/sandbox.Dockerfile docker`.
 
 ## Daily use
 
@@ -51,11 +52,30 @@ git push                                                   # after that
   - Claude runs headless in `dontAsk` mode, which means only the tools in `config.json`'s `allowedTools` can run. Push, remotes, history rewrites, `rm -rf` and downloads are blocked.
   - Each stage is killed after `stageTimeoutMinutes`.
   - Planning reads untrusted inbox text, so it runs with `planAllowedTools` only (read the project folder, write `PLAN.md`, no shell). Building uses `allowedTools` and only runs after you approve a plan.
-  - File access is scoped to the project folder, with extra denies for `~/.claude`, `~/.ssh` and `~/.config`. `npx` is blocked and `npm`/`pip` installs are limited to `npm install --ignore-scripts` and `pip install -r requirements.txt`.
-  - `ab.ps1 review` only runs a plan's `test_command` if it is a plain test runner.
-  - **Known limit:** a build stage can still run `python` or `node`, which can do anything you can. The allowlist reduces accidents and supply-chain risk; it is not a sandbox. Only approve plans you have read, and for stronger isolation run the daily task inside WSL or a VM.
+  - File access is scoped to the project folder, with extra denies for `~/.claude`, `~/.ssh`, `~/.config` and the project's `.git/` folder.
+  - `ab.ps1 review` only runs a plan's `test_command` if it is a plain test runner, and runs it in the sandbox.
   - Nothing is ever pushed automatically.
 - **Logs:** `logs/<date>.md` is the daily digest. It shows each stage's result, its cost in USD, and any tool calls the allowlist denied. `logs/runs/` holds Claude's full output for each stage.
+
+## Security: what the build sandbox isolates
+
+Every command that runs project code during a build stage (Python, Node/npm, tests, compilers, `make`) goes through `sandbox <command>`, which runs it in a fresh Docker container. `allowedTools` has no `python`, `node`, `npm` or other interpreter rule, and the runner refuses to start a build stage if one is added. If Docker is not installed or not running, the daily run stops with a clear message in the log and a notification; it never falls back to running code on the host. `ab.ps1 review` runs each project's tests in the same sandbox.
+
+**Isolated (inside the container):**
+- Filesystem: only `projects/<name>/` is mounted, at `/work`, with its `.git/` folder read-only. The rest of the disk, your home folder, `~/.claude`, SSH keys and other projects are not visible. The image's own filesystem is read-only; `/tmp` is a 1 GB scratch area that is thrown away.
+- Network: none (`--network none`), except for exactly `npm ci --ignore-scripts`, `npm install --ignore-scripts <packages>` and `pip install -r requirements.txt`, which get outbound network to fetch packages.
+- Privileges: runs as user 1000 (not root), with all Linux capabilities dropped and `no-new-privileges`.
+- Limits (`config.json` → `sandbox`): `cpus`, `memory` (no extra swap), `pidsLimit`, and `stepTimeoutMinutes` per command; stragglers are removed after each stage.
+
+**Not isolated (still runs on the host, as you):**
+- Claude Code itself, with its file tools (confined to the project folder) and the allowlisted shell commands: `git` (add, commit, diff, log, show, mv, rm, status, rev-parse) and simple read-only/file utilities (`ls`, `cat`, `head`, `tail`, `grep`, `wc`, `mkdir`, `touch`, `echo`, `pwd`, `which`). Git hooks and `core.fsmonitor` are switched off for these calls.
+- The runner scripts (PowerShell) and Docker Desktop.
+
+**Remaining risk:**
+- The project folder is writable from the container, so code in it can change the project's files (not its git history or config). Review commits before you run the project yourself on the host or push it.
+- During the three dependency-install commands the container has network access; a malicious package can then read and send out the project folder's contents (nothing else is mounted).
+- A container escape via a Docker Desktop, WSL 2 kernel or Hyper-V bug would reach the host. Keep Docker Desktop updated.
+- The sandbox image has only Python 3.12, Node.js/npm and gcc/g++/make. For other stacks, build your own image and set `sandbox.image`.
 
 ## Project layout
 
@@ -65,7 +85,10 @@ config.json             models, daily limits, timeouts, tool allowlist
 prompts/plan.md         instructions for turning an idea into PLAN.md
 prompts/stage.md        instructions for building one stage
 scripts/run-daily.ps1   the daily run: plan new ideas, build approved stages
-scripts/lib.ps1         shared helpers (headless claude call, plan parsing, git)
+scripts/lib.ps1         shared helpers (headless claude call, Docker sandbox, plan parsing, git)
+scripts/sandbox.ps1     runs one build command in the sandbox (called via scripts/bin/sandbox)
+docker/sandbox.Dockerfile  the sandbox image: Python 3.12, Node.js/npm, gcc/make
+tests/                  Pester tests (Docker is mocked): Invoke-Pester -Path tests
 scripts/install-task.ps1  registers the Windows scheduled task
 projects/, inbox/, logs/, state/   runtime data, git-ignored
 ```
@@ -76,4 +99,5 @@ In `config.json`:
 - `maxStagesPerDay`: the total number of stages built per day, across all projects. A project gets one stage a day unless its `PLAN.md` sets `stages_per_day: N`; an unfinished stage is not retried the same day.
 - `buildModel` / `planModel`: which model plans and which one builds.
 - `stageTimeoutMinutes`: how long a single stage may run before it is stopped.
-- `allowedTools` (build) and `planAllowedTools` (plan): add a `Bash(...)` rule to `allowedTools` if a project needs a tool that isn't allowed yet. Keep the plan list shell-free.
+- `allowedTools` (build) and `planAllowedTools` (plan): keep the plan list shell-free. Don't add interpreters or build tools to `allowedTools`; they run as `sandbox <command>`, and the runner refuses a build stage whose list would run them on the host.
+- `sandbox`: the container image and per-command limits (`cpus`, `memory`, `pidsLimit`, `stepTimeoutMinutes`).
