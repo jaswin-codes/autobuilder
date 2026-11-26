@@ -15,8 +15,6 @@ AfterAll {
     $env:AB_DOCKER = $SavedDocker
 }
 
-AfterEach { $env:AB_DOCKER = $SavedDocker }
-
 Describe 'build commands run in the container' {
     It 'runs the command through docker run with the isolation flags' {
         Mock Invoke-Docker { 0 }
@@ -79,6 +77,8 @@ Describe 'build commands run in the container' {
 }
 
 Describe 'the build stage can only run code through the sandbox' {
+    AfterEach { $env:AB_DOCKER = $SavedDocker }
+
     It 'puts sandbox on the agent PATH and tells it the project folder' {
         $psi = New-ClaudeStartInfo $Proj 'sonnet' 'build'
         $psi.EnvironmentVariables['AB_SANDBOX_DIR'] | Should -Be $Proj
@@ -134,6 +134,8 @@ Describe 'the build stage can only run code through the sandbox' {
 }
 
 Describe 'the daily run without Docker' {
+    AfterEach { $env:AB_DOCKER = $SavedDocker }
+
     It 'refuses to start and runs nothing on the host' {
         $copy = Join-Path $TestDrive 'ab'
         New-Item -ItemType Directory -Force (Join-Path $copy 'inbox') | Out-Null
