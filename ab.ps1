@@ -61,10 +61,13 @@ switch ($Command) {
             if ($test -and $p.Done -gt 0 -and -not (Test-SafeTestCommand $test)) {
                 Write-Host "  not running test_command (not a plain test runner): $test" -ForegroundColor Yellow
             } elseif ($test -and $p.Done -gt 0) {
-                Write-Host "  running tests: $test"
-                Push-Location $p.Dir
-                try { cmd /c "$test 2>&1" | Select-Object -Last 5 | ForEach-Object { Write-Host "    $_" } } finally { Pop-Location }
-                Write-Host "  tests: $(if ($LASTEXITCODE -eq 0) { 'PASS' } else { "FAIL (exit $LASTEXITCODE)" })" -ForegroundColor $(if ($LASTEXITCODE -eq 0) { 'Green' } else { 'Red' })
+                # Tests are model-written code, so they run in the same Docker sandbox as the build, never on the host.
+                try {
+                    Assert-SandboxReady
+                    Write-Host "  running tests in the sandbox: $test"
+                    $code = Invoke-Sandbox $p.Dir ($test -split ' ')
+                    Write-Host "  tests: $(if ($code -eq 0) { 'PASS' } else { "FAIL (exit $code)" })" -ForegroundColor $(if ($code -eq 0) { 'Green' } else { 'Red' })
+                } catch { Write-Host "  not running tests: $($_.Exception.Message)" -ForegroundColor Yellow }
             }
             if ($mark) { Invoke-Git $p.Dir @('rev-parse', 'HEAD') | Set-Content $markFile }
         }
